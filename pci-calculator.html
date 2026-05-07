@@ -1,0 +1,693 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>How PCI is Calculated — Interactive Explainer</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #f7f7f8;
+    --panel: #ffffff;
+    --ink: #1a2332;
+    --muted: #6b7280;
+    --line: #e5e7eb;
+    --accent: #ff6b35;
+    --accent-dark: #d9531e;
+    --cyan: #00d9ff;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--bg); color: var(--ink); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
+  body { padding: 24px; max-width: 1280px; margin: 0 auto; }
+  header { margin-bottom: 24px; }
+  h1 { margin: 0 0 6px; font-size: 28px; letter-spacing: -0.02em; }
+  .subtitle { color: var(--muted); margin: 0; font-size: 14px; }
+  .step-pill { display: inline-block; background: var(--accent); color: #fff; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 999px; letter-spacing: 0.05em; text-transform: uppercase; margin-right: 8px; }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 18px 20px; margin-bottom: 16px; }
+  .panel h2 { margin: 0 0 10px; font-size: 17px; display: flex; align-items: center; }
+  .panel p.help { color: var(--muted); font-size: 13px; line-height: 1.5; margin: 0 0 14px; }
+  .grid-2 { display: grid; grid-template-columns: 1.2fr 1fr; gap: 16px; }
+  @media (max-width: 900px) { .grid-2 { grid-template-columns: 1fr; } }
+
+  /* Presets */
+  .presets { display: flex; gap: 8px; flex-wrap: wrap; }
+  .preset-btn { background: #fff; border: 1px solid var(--line); padding: 6px 12px; border-radius: 999px; cursor: pointer; font-size: 12px; font-weight: 500; transition: all 0.15s; }
+  .preset-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .preset-btn.active { background: var(--ink); color: #fff; border-color: var(--ink); }
+
+  /* Distress controls */
+  .distress-row { display: grid; grid-template-columns: 16px 1fr auto auto; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+  .distress-row:last-child { border-bottom: none; }
+  .swatch { width: 14px; height: 14px; border-radius: 3px; }
+  .d-label { font-size: 13px; font-weight: 600; }
+  .d-label small { display: block; color: var(--muted); font-weight: 400; font-size: 11px; }
+  .d-stats { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; text-align: right; min-width: 80px; }
+  .d-stats strong { color: var(--ink); font-size: 13px; display: block; }
+  .btn-group { display: flex; gap: 4px; }
+  .btn-add, .btn-clear { border: 1px solid var(--line); background: #fff; padding: 5px 10px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600; transition: all 0.12s; }
+  .btn-add { background: var(--accent); color: #fff; border-color: var(--accent); min-width: 60px; }
+  .btn-add:hover { background: var(--accent-dark); border-color: var(--accent-dark); }
+  .btn-clear { color: var(--muted); }
+  .btn-clear:hover { color: var(--accent); border-color: var(--accent); }
+  .btn-clear:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* Road SVG */
+  .road-wrap { background: #0a0a0e; border-radius: 10px; overflow: hidden; aspect-ratio: 600 / 400; }
+  .road-wrap svg { width: 100%; height: 100%; display: block; }
+  .inst { cursor: pointer; }
+  .inst:hover .inst-shape { stroke-width: 3; }
+
+  /* Result */
+  .result-grid { display: grid; grid-template-columns: 200px 1fr; gap: 24px; align-items: center; }
+  @media (max-width: 700px) { .result-grid { grid-template-columns: 1fr; } }
+  .pci-circle { position: relative; width: 200px; height: 200px; margin: 0 auto; }
+  .pci-circle svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+  .pci-circle .pci-number { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; }
+  .pci-number .num { font-size: 48px; font-weight: 700; letter-spacing: -0.04em; line-height: 1; font-variant-numeric: tabular-nums; }
+  .pci-number .label { display: block; margin-top: 4px; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; }
+  .rating-band { display: inline-block; padding: 4px 12px; border-radius: 999px; font-size: 12px; font-weight: 600; color: #fff; margin-bottom: 8px; }
+  .calc-step { background: var(--bg); padding: 12px 14px; border-radius: 8px; margin-bottom: 8px; font-size: 13px; line-height: 1.5; }
+  .calc-step .formula { font-family: ui-monospace, "SF Mono", Menlo, monospace; color: var(--ink); font-size: 12px; background: #fff; padding: 1px 6px; border-radius: 4px; border: 1px solid var(--line); }
+
+  /* Deduct list */
+  .dv-list { display: flex; flex-direction: column; gap: 4px; }
+  .dv-item { display: flex; justify-content: space-between; align-items: center; padding: 6px 10px; border-radius: 6px; font-size: 12px; }
+  .dv-item.included { background: #fff5f0; border: 1px solid #ffd9c5; }
+  .dv-item.excluded { background: var(--bg); color: var(--muted); }
+
+  footer { margin-top: 24px; color: var(--muted); font-size: 11px; text-align: center; line-height: 1.6; }
+  .hint { font-size: 11px; color: var(--muted); margin-top: 6px; font-style: italic; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>How PCI is calculated</h1>
+  <p class="subtitle">An interactive walkthrough — add distresses to a road image and watch the PCI score update in real time. Based on ASTM D6433, adapted for vialytics' image-based detection.</p>
+</header>
+
+<!-- Presets -->
+<div class="panel" style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+  <strong style="font-size: 13px;">Try a preset:</strong>
+  <div class="presets">
+    <button class="preset-btn active" data-preset="fair">Fair road</button>
+    <button class="preset-btn" data-preset="poor">Poor road</button>
+    <button class="preset-btn" data-preset="failed">Failed road</button>
+    <button class="preset-btn" data-preset="reset">Clear all</button>
+  </div>
+</div>
+
+<!-- STEP 1 + 2: Detection + Densities -->
+<div class="grid-2">
+  <div class="panel">
+    <h2><span class="step-pill">Step 1</span> Distress detection</h2>
+    <p class="help">vialytics' AI analyzes the lower part of each forward-facing road image (a 13-foot segment). Detections are marked as bounding boxes, except longitudinal/transverse and alligator cracks which are returned as polygons. Click any detection to remove it.</p>
+    <div class="road-wrap">
+      <svg viewBox="0 0 600 400" id="roadSvg" preserveAspectRatio="xMidYMid slice">
+        <defs>
+          <linearGradient id="skyGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#a8bfd0"/>
+            <stop offset="60%" stop-color="#c8c5b8"/>
+            <stop offset="100%" stop-color="#d4c5a8"/>
+          </linearGradient>
+          <linearGradient id="roadGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#3a3f48"/>
+            <stop offset="100%" stop-color="#525762"/>
+          </linearGradient>
+          <pattern id="asphalt" width="6" height="6" patternUnits="userSpaceOnUse">
+            <rect width="6" height="6" fill="url(#roadGrad)"/>
+            <circle cx="1" cy="1" r="0.4" fill="#666b75" opacity="0.5"/>
+            <circle cx="4" cy="3" r="0.5" fill="#2a2f38" opacity="0.5"/>
+            <circle cx="2.5" cy="5" r="0.3" fill="#555c6e" opacity="0.5"/>
+          </pattern>
+        </defs>
+
+        <!-- Sky -->
+        <rect width="600" height="200" fill="url(#skyGrad)"/>
+        <!-- Sun -->
+        <circle cx="450" cy="55" r="22" fill="#f5e6c0" opacity="0.55"/>
+        <!-- Distant tree line -->
+        <path d="M0,200 Q40,182 80,188 Q120,176 160,184 Q200,170 240,180 Q280,172 320,178 Q360,168 400,176 Q440,170 480,180 Q520,174 560,182 Q580,178 600,180 L600,200 Z" fill="#7a8694" opacity="0.5"/>
+
+        <!-- Buildings left (silhouettes) -->
+        <rect x="0" y="138" width="55" height="62" fill="#4a5260"/>
+        <rect x="55" y="155" width="35" height="45" fill="#5a6270"/>
+        <rect x="90" y="165" width="40" height="35" fill="#525a68"/>
+        <g fill="#e8c878" opacity="0.55">
+          <rect x="8" y="150" width="6" height="7"/><rect x="22" y="150" width="6" height="7"/><rect x="36" y="150" width="6" height="7"/>
+          <rect x="8" y="170" width="6" height="7"/><rect x="22" y="170" width="6" height="7"/><rect x="36" y="170" width="6" height="7"/>
+          <rect x="62" y="165" width="5" height="6"/><rect x="74" y="165" width="5" height="6"/>
+          <rect x="62" y="180" width="5" height="6"/><rect x="74" y="180" width="5" height="6"/>
+          <rect x="98" y="175" width="5" height="6"/><rect x="112" y="175" width="5" height="6"/>
+        </g>
+        <!-- Pole left -->
+        <rect x="125" y="120" width="2" height="80" fill="#3a3f48"/>
+        <rect x="120" y="118" width="14" height="3" fill="#3a3f48"/>
+
+        <!-- Trees right -->
+        <ellipse cx="540" cy="170" rx="42" ry="32" fill="#4a5d3e"/>
+        <ellipse cx="580" cy="180" rx="22" ry="20" fill="#3a4d2e"/>
+        <rect x="535" y="180" width="6" height="22" fill="#3d2e1f"/>
+        <ellipse cx="475" cy="180" rx="25" ry="18" fill="#3a4d2e"/>
+        <rect x="471" y="186" width="5" height="16" fill="#3d2e1f"/>
+
+        <!-- Sidewalks (perspective) -->
+        <polygon points="0,200 240,200 0,400" fill="#888894"/>
+        <polygon points="360,200 600,200 600,400" fill="#888894"/>
+
+        <!-- Road (perspective trapezoid) -->
+        <polygon points="240,200 360,200 600,400 0,400" fill="url(#asphalt)"/>
+
+        <!-- Curb edges -->
+        <polygon points="238,200 244,200 6,400 -2,400" fill="#bcbcc4"/>
+        <polygon points="356,200 362,200 602,400 594,400" fill="#bcbcc4"/>
+
+        <!-- Edge lines (white road edges) -->
+        <polygon points="240,200 243,200 6,400 -2,400" fill="#fff" opacity="0.3"/>
+        <polygon points="357,200 360,200 602,400 594,400" fill="#fff" opacity="0.3"/>
+
+        <!-- Top portion darkened (mimics vialytics product UI: only bottom strip is analyzed) -->
+        <rect width="600" height="280" fill="#0a0a0e" opacity="0.42"/>
+
+        <!-- Analyzed asphalt area (trapezoid following the road perspective) -->
+        <polygon points="144,280 456,280 597.6,398 2.4,398" fill="#000" opacity="0.05"/>
+        <polygon points="144,280 456,280 597.6,398 2.4,398" fill="none" stroke="#ff6b35" stroke-width="2" stroke-dasharray="6,4"/>
+        <rect x="208" y="265" width="184" height="14" rx="3" fill="#ff6b35"/>
+        <text x="300" y="275" fill="#fff" font-size="9" font-family="ui-monospace, monospace" font-weight="700" text-anchor="middle">ANALYZED ROAD SURFACE (= 100%)</text>
+
+        <!-- Distress instance overlays -->
+        <g id="instances"></g>
+      </svg>
+    </div>
+    <p class="hint">Click any detection to remove it. Bounding boxes for block, patching, potholes & raveling. Polygons for longitudinal/transverse and alligator cracks.</p>
+  </div>
+
+  <div class="panel">
+    <h2><span class="step-pill">Step 2</span> Distress density (%)</h2>
+    <p class="help">For each PCI category, density = total detected damage area ÷ analyzed road surface area. Click [+ Add] to drop one detection on the road.</p>
+    <div id="distress-controls"></div>
+  </div>
+</div>
+
+<!-- STEP 3: Deduct Values -->
+<div class="panel">
+  <h2><span class="step-pill">Step 3</span> Deduct value (DV) per category</h2>
+  <p class="help">Each density % maps to a Deduct Value via ASTM D6433-like curves. Higher-severity distresses (potholes, alligator cracks) deduct more even at low density. Curves below are illustrative approximations.</p>
+  <div class="grid-2">
+    <div style="height: 320px;"><canvas id="dvChart"></canvas></div>
+    <div>
+      <p class="help" style="margin-bottom: 8px;">Current deduct values:</p>
+      <div class="dv-list" id="dvList"></div>
+    </div>
+  </div>
+</div>
+
+<!-- STEP 4: CDV + PCI -->
+<div class="panel">
+  <h2><span class="step-pill">Step 4</span> Maximum CDV → PCI</h2>
+  <p class="help">When multiple distresses are present, raw deduct values would over-count. ASTM defines a Corrected Deduct Value (CDV) algorithm that combines them with diminishing returns based on <code>q</code> (count of significant DVs &gt; 2). Final PCI = 100 − maxCDV.</p>
+
+  <div class="result-grid">
+    <div class="pci-circle">
+      <svg viewBox="0 0 100 100">
+        <circle cx="50" cy="50" r="44" fill="none" stroke="#e5e7eb" stroke-width="8"/>
+        <circle id="pciArc" cx="50" cy="50" r="44" fill="none" stroke="#16a34a" stroke-width="8" stroke-linecap="round" stroke-dasharray="276.46" stroke-dashoffset="0"/>
+      </svg>
+      <div class="pci-number">
+        <span id="ratingBand" class="rating-band" style="background:#16a34a;">Excellent</span>
+        <div><span id="pciNumber" class="num">100</span></div>
+        <span class="label">PCI score</span>
+      </div>
+    </div>
+    <div>
+      <div class="calc-step">
+        <strong>Sum of deduct values (TDV):</strong> <span class="formula" id="tdvVal">0.0</span>
+        &nbsp;&nbsp;<strong>q (DVs &gt; 2):</strong> <span class="formula" id="qVal">0</span>
+      </div>
+      <div class="calc-step">
+        <strong>Highest individual DV (HDV):</strong> <span class="formula" id="hdvVal">0.0</span><br/>
+        <span style="color: var(--muted);">Other DVs are added with a diminishing factor (more distresses → more discount).</span>
+      </div>
+      <div class="calc-step">
+        <strong>Maximum CDV:</strong> <span class="formula" id="cdvVal">0.0</span><br/>
+        <strong>PCI = 100 − maxCDV =</strong> <span class="formula" id="pciFormula">100.0</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<footer>
+  <div>vialytics PCI explainer · ASTM D6433-aligned · Deduct value curves are illustrative approximations.</div>
+  <div>Rating bands: 86–100 Excellent · 71–85 Good · 56–70 Satisfactory · 41–55 Fair · 26–40 Poor · 11–25 Serious · 0–10 Failed</div>
+</footer>
+
+<script>
+// ============= Distress category config =============
+// Coefficients calibrated so DV(d) = A * log10(1 + B*d) qualitatively matches
+// ASTM D6433 medium-severity curves (vialytics combines low/med/high).
+//
+// "shape" determines how an instance is rendered & sized:
+//   - bbox: rectangular bounding box (block, patching, potholes, raveling)
+//   - linear: long thin polygon along a wiggling line (longitudinal/transverse)
+//   - alligator: irregular blob polygon with mesh inside
+const CATS = [
+  { id: 'alligator', name: 'Alligator Cracking',     sub: 'Interconnecting fatigue cracks',       color: '#dc2626', A: 35, B: 2,   shape: 'alligator', sizeRange: [55, 85, 35, 55] },
+  { id: 'block',     name: 'Block Cracking',          sub: 'Rectangular pattern cracks',           color: '#a855f7', A: 18, B: 1,   shape: 'bbox',      sizeRange: [60, 90, 35, 55] },
+  { id: 'linear',    name: 'Longitudinal & Transverse', sub: 'Linear cracks, joints, sealed cracks', color: '#3b82f6', A: 15, B: 0.8, shape: 'linear',    sizeRange: [80, 130, 5, 9] },
+  { id: 'patching',  name: 'Patching & Utility Cuts', sub: 'Patches, sprayed patches',             color: '#0ea5e9', A: 22, B: 1.5, shape: 'bbox',      sizeRange: [75, 115, 35, 55] },
+  { id: 'potholes',  name: 'Potholes',                sub: 'Flaking, small & severe potholes',     color: '#f97316', A: 50, B: 4,   shape: 'bbox',      sizeRange: [22, 38, 18, 30] },
+  { id: 'raveling',  name: 'Raveling',                sub: 'Aggregate dislodgement',               color: '#facc15', A: 20, B: 1.2, shape: 'bbox',      sizeRange: [90, 140, 50, 80] },
+];
+
+// Each preset describes how many instances of each category to generate.
+// Calibrated so the resulting PCI lands in the right band given avg instance areas.
+// Preset spec: array of { cat, count, sizeMultiplier? }
+// Calibrated against ASPHALT_AREA so PCI lands in the right band.
+const PRESETS = {
+  fair: [
+    { cat: 'alligator', count: 1 },
+    { cat: 'raveling',  count: 1 },
+  ],  // PCI ≈ 45  (Fair)
+  poor: [
+    { cat: 'alligator', count: 1 },
+    { cat: 'patching',  count: 1 },
+    { cat: 'raveling',  count: 1 },
+  ],  // PCI ≈ 34  (Poor)
+  failed: [
+    { cat: 'alligator', count: 1, sizeMultiplier: 1.6 },
+    { cat: 'potholes',  count: 1, sizeMultiplier: 2.0 },
+    { cat: 'patching',  count: 1, sizeMultiplier: 1.5 },
+  ],  // PCI ≈ 0   (Failed)
+  reset: [],
+};
+
+// Analyzed strip y-range (matches the SVG trapezoid bounds)
+const STRIP = { y: 280, h: 118 };  // y: 280..398
+// Road perspective: trapezoid edges. Vanishing point at y=200 (x 240..360).
+// At y=400 the road spans the full image width.
+function roadXLeft(y)  { return 480 - 1.2 * y; }   // y=280 → 144,  y=398 → 2.4
+function roadXRight(y) { return 120 + 1.2 * y; }   // y=280 → 456,  y=398 → 597.6
+// Asphalt area (trapezoid) — denominator for density %. Sidewalks are NOT counted.
+const ASPHALT_AREA = ((roadXRight(STRIP.y) - roadXLeft(STRIP.y)) +
+                      (roadXRight(STRIP.y + STRIP.h) - roadXLeft(STRIP.y + STRIP.h))) / 2 * STRIP.h;
+
+// State: array of instances, each with id, cat, area, and shape data
+const state = { instances: [] };
+let nextId = 1;
+
+// Seeded random (deterministic, used for presets)
+let seededRand = null;
+function makeRand(seed) {
+  let s = seed;
+  return () => { s = (s * 9301 + 49297) % 233280; return s / 233280; };
+}
+function rnd() {
+  if (seededRand) return seededRand();
+  return Math.random();
+}
+
+// ============= Find a valid position on the asphalt that doesn't overlap =============
+// Returns { x, y } for a bbox-shaped placeholder of size (bboxW, bboxH).
+// Tries N random positions; rejects positions outside the road trapezoid or
+// overlapping >10% with an existing instance. Falls back to last attempt if no
+// fully-valid spot is found.
+function findValidPosition(bboxW, bboxH) {
+  const yMin = STRIP.y + 2;
+  const yMax = STRIP.y + STRIP.h - bboxH - 2;
+  if (yMax < yMin) return null;
+  const N = 100;
+  let fallback = null;
+  for (let i = 0; i < N; i++) {
+    const y = yMin + rnd() * (yMax - yMin);
+    // Road x-range: tightest at top (smaller y) since road is narrower there
+    const xLeft  = Math.max(roadXLeft(y),  roadXLeft(y + bboxH))  + 4;
+    const xRight = Math.min(roadXRight(y), roadXRight(y + bboxH)) - 4;
+    if (xRight - bboxW < xLeft) continue;
+    const x = xLeft + rnd() * (xRight - bboxW - xLeft);
+    // Overlap check
+    let bad = false;
+    for (const inst of state.instances) {
+      const bb = inst.bbox;
+      if (!bb) continue;
+      const oW = Math.min(x + bboxW, bb.x + bb.w) - Math.max(x, bb.x);
+      const oH = Math.min(y + bboxH, bb.y + bb.h) - Math.max(y, bb.y);
+      if (oW > 0 && oH > 0) {
+        const oArea = oW * oH;
+        const minArea = Math.min(bboxW * bboxH, bb.w * bb.h);
+        if (oArea / minArea > 0.10) { bad = true; break; }
+      }
+    }
+    if (!bad) return { x, y };
+    if (!fallback) fallback = { x, y };
+  }
+  return fallback;
+}
+
+// ============= Generate a new instance for a category =============
+// opts.sizeMultiplier scales the random size (used by presets to make Failed-road bigger).
+function generateInstance(catId, opts = {}) {
+  const cat = CATS.find(c => c.id === catId);
+  const mult = opts.sizeMultiplier || 1;
+  const id = nextId++;
+  const [a, b, c, d] = cat.sizeRange;
+
+  let bboxW, bboxH, shapeData = {};
+  if (cat.shape === 'bbox' || cat.shape === 'alligator') {
+    bboxW = (a + rnd() * (b - a)) * mult;
+    bboxH = (c + rnd() * (d - c)) * mult;
+  } else if (cat.shape === 'linear') {
+    const length = (a + rnd() * (b - a)) * mult;
+    const lwidth = (c + rnd() * (d - c)) * mult;
+    const angle = (rnd() - 0.5) * 0.5;  // small angle, mostly horizontal-ish
+    bboxW = length;
+    bboxH = lwidth + 14;  // padding for wiggle + angle
+    shapeData = { length, lwidth, angle };
+  }
+
+  const pos = findValidPosition(bboxW, bboxH);
+  if (!pos) return null;
+  const cx = pos.x + bboxW / 2;
+  const cy = pos.y + bboxH / 2;
+  const bbox = { x: pos.x, y: pos.y, w: bboxW, h: bboxH };
+
+  if (cat.shape === 'bbox') {
+    return { id, cat: catId, shape: 'bbox', x: pos.x, y: pos.y, w: bboxW, h: bboxH, area: bboxW * bboxH, bbox };
+  }
+
+  if (cat.shape === 'linear') {
+    const { length, lwidth, angle } = shapeData;
+    const segs = 6;
+    const dx = (Math.cos(angle) * length) / segs;
+    const dy = (Math.sin(angle) * length) / segs;
+    const nx = -Math.sin(angle), ny = Math.cos(angle);
+    const top = [], bot = [];
+    for (let i = 0; i <= segs; i++) {
+      const baseX = cx - (Math.cos(angle) * length) / 2 + dx * i;
+      const baseY = cy - (Math.sin(angle) * length) / 2 + dy * i;
+      const wig = (rnd() - 0.5) * 3;
+      const halfW = lwidth / 2;
+      top.push({ x: baseX + nx * (halfW + wig), y: baseY + ny * (halfW + wig) });
+      bot.push({ x: baseX - nx * (halfW + wig), y: baseY - ny * (halfW + wig) });
+    }
+    const points = [...top, ...bot.reverse()];
+    return { id, cat: catId, shape: 'linear', points, area: length * lwidth, bbox };
+  }
+
+  if (cat.shape === 'alligator') {
+    const w = bboxW, h = bboxH;
+    const N = 9;
+    const points = [];
+    for (let i = 0; i < N; i++) {
+      const ang = (i / N) * Math.PI * 2;
+      const rx = (w / 2) * (0.78 + rnd() * 0.22);
+      const ry = (h / 2) * (0.78 + rnd() * 0.22);
+      points.push({ x: cx + Math.cos(ang) * rx, y: cy + Math.sin(ang) * ry });
+    }
+    const mesh = [];
+    for (let i = 0; i < 4; i++) {
+      mesh.push({
+        x1: cx - w * 0.35 + rnd() * w * 0.7, y1: cy - h * 0.4,
+        x2: cx - w * 0.35 + rnd() * w * 0.7, y2: cy + h * 0.4
+      });
+    }
+    for (let i = 0; i < 3; i++) {
+      mesh.push({
+        x1: cx - w * 0.42, y1: cy - h * 0.3 + rnd() * h * 0.6,
+        x2: cx + w * 0.42, y2: cy - h * 0.3 + rnd() * h * 0.6
+      });
+    }
+    return { id, cat: catId, shape: 'alligator', points, mesh, area: w * h * 0.85, cx, cy, w, h, bbox };
+  }
+}
+
+// ============= Render instances on the SVG =============
+function renderInstances() {
+  const g = document.getElementById('instances');
+  let svg = '';
+  for (const inst of state.instances) {
+    const cat = CATS.find(c => c.id === inst.cat);
+    const labelText = shortLabel(cat.name);
+    const labelW = labelText.length * 5.5 + 8;
+
+    if (inst.shape === 'bbox') {
+      svg += `<g class="inst" data-id="${inst.id}">
+        <rect class="inst-shape" x="${inst.x}" y="${inst.y}" width="${inst.w}" height="${inst.h}"
+              fill="${cat.color}" fill-opacity="0.18" stroke="${cat.color}" stroke-width="2" rx="2"/>
+        <rect x="${inst.x}" y="${Math.max(STRIP.y - 2, inst.y - 13)}" width="${labelW}" height="12" rx="2" fill="${cat.color}"/>
+        <text x="${inst.x + 4}" y="${Math.max(STRIP.y + 7, inst.y - 4)}" fill="#fff" font-size="9" font-family="ui-sans-serif, system-ui" font-weight="600">${labelText}</text>
+      </g>`;
+    } else if (inst.shape === 'linear') {
+      const pts = inst.points.map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
+      const labelX = inst.points[0].x;
+      const labelY = inst.points[0].y - 4;
+      svg += `<g class="inst" data-id="${inst.id}">
+        <polygon class="inst-shape" points="${pts}" fill="${cat.color}" fill-opacity="0.35" stroke="${cat.color}" stroke-width="1.5"/>
+        <rect x="${labelX}" y="${labelY - 9}" width="${labelW}" height="12" rx="2" fill="${cat.color}"/>
+        <text x="${labelX + 4}" y="${labelY}" fill="#fff" font-size="9" font-family="ui-sans-serif, system-ui" font-weight="600">${labelText}</text>
+      </g>`;
+    } else if (inst.shape === 'alligator') {
+      const pts = inst.points.map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
+      const meshLines = inst.mesh.map(m => `<line x1="${m.x1.toFixed(1)}" y1="${m.y1.toFixed(1)}" x2="${m.x2.toFixed(1)}" y2="${m.y2.toFixed(1)}" stroke="${cat.color}" stroke-width="1" stroke-opacity="0.85"/>`).join('');
+      const labelX = inst.cx - inst.w / 2;
+      const labelY = inst.cy - inst.h / 2 - 2;
+      svg += `<g class="inst" data-id="${inst.id}">
+        <polygon class="inst-shape" points="${pts}" fill="${cat.color}" fill-opacity="0.25" stroke="${cat.color}" stroke-width="2"/>
+        ${meshLines}
+        <rect x="${labelX}" y="${labelY - 11}" width="${labelW}" height="12" rx="2" fill="${cat.color}"/>
+        <text x="${labelX + 4}" y="${labelY - 2}" fill="#fff" font-size="9" font-family="ui-sans-serif, system-ui" font-weight="600">${labelText}</text>
+      </g>`;
+    }
+  }
+  g.innerHTML = svg;
+  // Wire up click-to-remove
+  g.querySelectorAll('.inst').forEach(el => {
+    el.addEventListener('click', () => {
+      const id = parseInt(el.getAttribute('data-id'));
+      state.instances = state.instances.filter(i => i.id !== id);
+      setActivePreset(null);
+      update();
+    });
+  });
+}
+
+function shortLabel(name) {
+  // Compact label for badges
+  const map = {
+    'Alligator Cracking': 'Alligator',
+    'Block Cracking': 'Block',
+    'Longitudinal & Transverse': 'Linear Crack',
+    'Patching & Utility Cuts': 'Patching',
+    'Potholes': 'Pothole',
+    'Raveling': 'Raveling',
+  };
+  return map[name] || name;
+}
+
+// ============= DV / CDV =============
+function deductValue(cat, density) {
+  if (density <= 0) return 0;
+  return Math.min(100, cat.A * Math.log10(1 + cat.B * density));
+}
+function correctedDeductValue(dvs) {
+  const sig = dvs.filter(v => v > 2);
+  const q = sig.length;
+  if (q === 0) return { cdv: 0, q: 0, hdv: 0, tdv: 0 };
+  const sorted = [...sig].sort((a, b) => b - a);
+  const hdv = sorted[0];
+  const tdv = sorted.reduce((s, v) => s + v, 0);
+  if (q === 1) return { cdv: hdv, q, hdv, tdv };
+  const f = q === 2 ? 0.75 : q === 3 ? 0.6 : q === 4 ? 0.5 : 0.42;
+  const c1 = Math.min(100, hdv + (tdv - hdv) * f);
+  const f2 = q === 2 ? 0.85 : q === 3 ? 0.7 : 0.55;
+  const c2 = Math.min(100, tdv * f2);
+  return { cdv: Math.max(c1, c2), q, hdv, tdv };
+}
+
+function pciBand(pci) {
+  if (pci >= 86) return { label: 'Excellent', color: '#16a34a' };
+  if (pci >= 71) return { label: 'Good',      color: '#65a30d' };
+  if (pci >= 56) return { label: 'Satisfactory', color: '#84cc16' };
+  if (pci >= 41) return { label: 'Fair',      color: '#eab308' };
+  if (pci >= 26) return { label: 'Poor',      color: '#f97316' };
+  if (pci >= 11) return { label: 'Serious',   color: '#ef4444' };
+  return            { label: 'Failed',     color: '#991b1b' };
+}
+
+// ============= Density per category =============
+function densityFor(catId) {
+  const total = state.instances.filter(i => i.cat === catId).reduce((s, i) => s + i.area, 0);
+  return (total / ASPHALT_AREA) * 100;
+}
+function countFor(catId) {
+  return state.instances.filter(i => i.cat === catId).length;
+}
+
+// ============= Build distress controls =============
+const ctrlEl = document.getElementById('distress-controls');
+function buildControls() {
+  ctrlEl.innerHTML = '';
+  CATS.forEach(cat => {
+    const row = document.createElement('div');
+    row.className = 'distress-row';
+    row.innerHTML = `
+      <div class="swatch" style="background:${cat.color}"></div>
+      <div class="d-label">${cat.name}<small>${cat.sub}</small></div>
+      <div class="d-stats">
+        <strong><span id="d_${cat.id}">0.0</span>%</strong>
+        <span id="c_${cat.id}">0</span> instance(s)
+      </div>
+      <div class="btn-group">
+        <button class="btn-add" data-add="${cat.id}">+ Add</button>
+        <button class="btn-clear" data-clear="${cat.id}" disabled>Clear</button>
+      </div>
+    `;
+    ctrlEl.appendChild(row);
+  });
+  ctrlEl.querySelectorAll('[data-add]').forEach(b => {
+    b.addEventListener('click', () => {
+      seededRand = null;
+      const inst = generateInstance(b.dataset.add);
+      if (inst) state.instances.push(inst);
+      setActivePreset(null);
+      update();
+    });
+  });
+  ctrlEl.querySelectorAll('[data-clear]').forEach(b => {
+    b.addEventListener('click', () => {
+      state.instances = state.instances.filter(i => i.cat !== b.dataset.clear);
+      setActivePreset(null);
+      update();
+    });
+  });
+}
+
+// ============= DV chart =============
+const dvCanvas = document.getElementById('dvChart').getContext('2d');
+const curveDatasets = CATS.map(cat => ({
+  label: cat.name,
+  borderColor: cat.color,
+  backgroundColor: cat.color + '20',
+  data: Array.from({ length: 51 }, (_, i) => ({ x: i, y: deductValue(cat, i) })),
+  pointRadius: 0,
+  borderWidth: 2,
+  tension: 0.2,
+}));
+const pointDatasets = CATS.map(cat => ({
+  label: cat.name + ' (current)',
+  borderColor: cat.color,
+  backgroundColor: cat.color,
+  data: [{ x: 0, y: 0 }],
+  pointRadius: 6,
+  pointHoverRadius: 8,
+  showLine: false,
+  borderWidth: 2,
+  pointStyle: 'circle',
+}));
+const dvChart = new Chart(dvCanvas, {
+  type: 'line',
+  data: { datasets: [...curveDatasets, ...pointDatasets] },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    interaction: { intersect: false, mode: 'index' },
+    scales: {
+      x: { type: 'linear', title: { display: true, text: 'Distress density (%)' }, min: 0, max: 50, ticks: { stepSize: 10 } },
+      y: { title: { display: true, text: 'Deduct value' }, min: 0, max: 100 },
+    },
+    plugins: {
+      legend: { labels: { boxWidth: 12, font: { size: 11 }, filter: (item) => !item.text.includes('(current)') } },
+      tooltip: { callbacks: { label: (c) => `${c.dataset.label}: density ${c.parsed.x}%, DV ${c.parsed.y.toFixed(1)}` } }
+    },
+  }
+});
+
+// ============= DV list =============
+const dvListEl = document.getElementById('dvList');
+function renderDvList(dvs) {
+  dvListEl.innerHTML = '';
+  CATS.forEach((cat, i) => {
+    const dv = dvs[i];
+    const included = dv > 2;
+    const div = document.createElement('div');
+    div.className = 'dv-item ' + (included ? 'included' : 'excluded');
+    div.innerHTML = `
+      <span><span class="swatch" style="display:inline-block;background:${cat.color};width:10px;height:10px;border-radius:2px;margin-right:6px;vertical-align:middle;"></span>${cat.name}</span>
+      <strong>DV ${dv.toFixed(1)}</strong>
+    `;
+    dvListEl.appendChild(div);
+  });
+}
+
+// ============= Update everything =============
+function update() {
+  // Densities & counts
+  CATS.forEach(cat => {
+    const d = densityFor(cat.id);
+    const c = countFor(cat.id);
+    document.getElementById('d_' + cat.id).textContent = d.toFixed(1);
+    document.getElementById('c_' + cat.id).textContent = c;
+    const clearBtn = ctrlEl.querySelector(`[data-clear="${cat.id}"]`);
+    if (clearBtn) clearBtn.disabled = c === 0;
+  });
+  // DVs from densities
+  const densities = CATS.map(c => densityFor(c.id));
+  const dvs = CATS.map((c, i) => deductValue(c, densities[i]));
+  // Update chart points
+  CATS.forEach((cat, i) => {
+    dvChart.data.datasets[CATS.length + i].data = [{ x: densities[i], y: dvs[i] }];
+  });
+  dvChart.update('none');
+  renderDvList(dvs);
+  // CDV → PCI
+  const { cdv, q, hdv, tdv } = correctedDeductValue(dvs);
+  const pci = Math.max(0, 100 - cdv);
+  document.getElementById('tdvVal').textContent = tdv.toFixed(1);
+  document.getElementById('qVal').textContent = q;
+  document.getElementById('hdvVal').textContent = hdv.toFixed(1);
+  document.getElementById('cdvVal').textContent = cdv.toFixed(1);
+  document.getElementById('pciFormula').textContent = pci.toFixed(1);
+  document.getElementById('pciNumber').textContent = pci.toFixed(0);
+  const band = pciBand(pci);
+  const bandEl = document.getElementById('ratingBand');
+  bandEl.textContent = band.label;
+  bandEl.style.background = band.color;
+  const arc = document.getElementById('pciArc');
+  const C = 2 * Math.PI * 44;
+  arc.setAttribute('stroke-dasharray', C);
+  arc.setAttribute('stroke-dashoffset', C * (1 - pci / 100));
+  arc.setAttribute('stroke', band.color);
+  // Render road overlays
+  renderInstances();
+}
+
+// ============= Presets =============
+function setActivePreset(name) {
+  document.querySelectorAll('.preset-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.preset === name);
+  });
+}
+function applyPreset(name) {
+  const spec = PRESETS[name] || [];
+  state.instances = [];
+  // Use a deterministic seed per preset so layouts are reproducible
+  seededRand = makeRand(name.charCodeAt(0) * 991 + name.length * 17);
+  for (const item of spec) {
+    for (let i = 0; i < item.count; i++) {
+      const inst = generateInstance(item.cat, { sizeMultiplier: item.sizeMultiplier });
+      if (inst) state.instances.push(inst);
+    }
+  }
+  seededRand = null;
+  setActivePreset(name);
+  update();
+}
+document.querySelectorAll('.preset-btn').forEach(btn => {
+  btn.addEventListener('click', () => applyPreset(btn.dataset.preset));
+});
+
+// ============= Init =============
+buildControls();
+applyPreset('fair');
+</script>
+
+</body>
+</html>
